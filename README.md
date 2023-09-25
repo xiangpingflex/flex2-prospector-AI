@@ -1,2 +1,2 @@
-# flex2-lead-gen-AI
-flex2 lead generation using AI
+# flex2-prospector-AI
+leverage AI to improve productivity of sales team
