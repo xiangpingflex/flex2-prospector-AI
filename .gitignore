@@ -73,3 +73,4 @@ terraform.rc
 
 experiments/.ipynb_checkpoints/*
 experiments/data
+data/
