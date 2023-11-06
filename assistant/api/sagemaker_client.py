@@ -20,6 +20,17 @@ class SagemakerClient:
         result = self.invoke_endpoint(input_data)
         return result["probabilities-1d"][0][0]
 
+    def invoke_llama2_endpoint(self, payload):
+        response = self.sagemaker_runtime.invoke_endpoint(
+            EndpointName=self.endpoint_name,
+            ContentType="application/json",
+            Body=json.dumps(payload),
+            CustomAttributes="accept_eula=true",
+        )
+        response = response["Body"].read().decode("utf8")
+        response = json.loads(response)
+        return response
+
 
 # region = 'us-east-1'
 # # Initialize a Boto3 SageMaker client
