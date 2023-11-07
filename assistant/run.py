@@ -123,26 +123,31 @@ if "persist" not in st.session_state:
 if "step" not in st.session_state:
     st.session_state["step"] = 0
 
+if "top_resource" not in st.session_state:
+    st.session_state["top_resource"] = {}
 
-def add_new_row(new_key, new_value, is_markdown=False):
-    if is_markdown:
-        st.session_state["persist"][new_key] = (
-            new_value,
-            st.markdown(new_value, key=new_key),
-        )
+
+def add_new_row(new_key, new_value, with_response=True):
+    st.write(new_value)
+    # text_content = None
+    if with_response:
+        st.text_area("#### Enter email response content", key=new_key)
+        # print(text_content)
+        st.session_state["persist"][new_key] = (new_value, new_key)
     else:
-        st.session_state["persist"][new_key] = (new_value, st.write(new_value))
+        st.session_state["persist"][new_key] = (new_value, None)
 
 
-def page_refresh(state_key, item_key, item_value):
-    st.session_state[state_key][item_key] = (item_value, st.write(item_value))
+# def page_refresh(state_key, item_key, item_value):
+#     st.session_state[state_key][item_key] = (item_value, st.write(item_value))
 
 
 email_gen = st.button("Generate Email", key=f"email_generation_button")
 
 if email_gen:
+    email_gen = True
     with st.spinner("Generating..."):
-        if "top_resource" not in st.session_state:
+        if not st.session_state["top_resource"]:
             st.session_state[
                 "top_resource"
             ] = sequence_model.get_top_sequence_email_template(
@@ -156,9 +161,24 @@ if email_gen:
                 f"#### Generate {st.session_state['max_step']}-step Sequence Plan",
                 None,
             )
-            # add_new_row('km_key', "Knowledge mining is done!")
-            # st.write("Knowledge mining is done!")
-        if st.session_state["step"] < st.session_state["max_step"]:
+
+        session_state_key_sorted_response = sorted(
+            [k for k in st.session_state["persist"].keys() if "email_" in k],
+            reverse=True,
+        )
+
+        cur_response = (
+            ""
+            if not session_state_key_sorted_response
+            else st.session_state.__getattr__(
+                st.session_state["persist"][session_state_key_sorted_response[0]][1]
+            )
+        )
+
+        if (
+            st.session_state["step"] < st.session_state["max_step"]
+            and cur_response == ""
+        ):
             email_template_list = [
                 v[st.session_state["step"]]["template_content"]
                 for k, v in st.session_state["top_resource"].items()
@@ -176,65 +196,20 @@ if email_gen:
                 None,
             )
             st.session_state["step"] += 1
+        elif cur_response != "" and cur_response != "meeting":
+            timestamp_in_seconds = time.time()
+            new_key_email = "email_" + str(timestamp_in_seconds)
+            reply_email = "This is a replay email"
+            st.session_state["persist"][new_key_email] = (
+                f"#### Replay Email: \n" + reply_email,
+                None,
+            )
         else:
-            st.markdown("### All steps are done!")
+            st.success("### All steps are done!")
         session_state_key_sorted = ["max_step_p"] + sorted(
             [k for k in st.session_state["persist"].keys() if "email_" in k],
             reverse=True,
         )
         for key in session_state_key_sorted:
             prev_email_content = st.session_state["persist"][key][0]
-            add_new_row(key, prev_email_content)
-
-# if st.button("Generate Email Sequence", key=f"sequence_generation"):
-#     with st.spinner("Generating..."):
-#         top_resource = sequence_model.get_top_sequence_email_template(top_n_seq, lead_info_case)
-#     st.write("Knowledge mining is done!")
-#     st.write(f"Outreach step: {step}: ")
-#     email_template_list = [v[step]['template_content'] for k, v in top_resource.items() if step < len(v)]
-#     outreach_email = outreach_model.generate_outreach_email(email_template_list,
-#                                                             max_tokens=max_length)
-#     st.write(outreach_email)
-#     st.markdown("<hr style='border: 0.5px solid white;'>", unsafe_allow_html=True)
-#     response_content = st.text_input("Enter your email response content")
-#     print(response_content)
-#     if not response_content:
-#         step += 1
-#         if st.button("Generate Response", key=f"sequence_generation_{step}"):
-#             with st.spinner("Generating..."):
-#                 email_template_list = [v[step]['template_content'] for k, v in top_resource.items() if step < len(v)]
-#                 # outreach_email = outreach_model.generate_outreach_email(email_template_list,
-#                 #                                                         max_tokens=max_length)
-#                 outreach_email = "text_email"
-#                 st.write(outreach_email)
-#     else:
-#         st.write("Done")
-# Create two buttons and place them at the bottom using the placeholder
-# button1 = st.button("Button 1")
-# stepx= 0
-# if button1:
-#     if stepx == 0:
-#         print(stepx)
-#         stepx += 1
-#         st.write("Clicked!")
-#
-#     else:
-#         print(stepx)
-#         st.write("Clicked again!")
-
-# st.markdown("## Generation Parameters")
-# max_length = st.slider("Max length", min_value=50, max_value=500, value=300, step=50)
-#
-# # Create a selectbox for the models
-# outreach_model_choice = st.selectbox("Choose a LLM model for email generation:", outreach_models)
-#
-# total_step = max([len(x) for x in top_resource.values()])
-# for step in range(total_step):
-#     st.markdown(f"### Step {step+1}")
-#     if st.button("generate email", key=f"generate_first_out_{step}"):
-#         with st.spinner("Generating..."):
-#             email_template_list = [v[step]['template_content'] for k, v in top_resource.items() if step < len(v)]
-#             outreach_email = outreach_model.generate_outreach_email(email_template_list,
-#                                                                     max_tokens=max_length)
-#         st.markdown("### Generated Email Body")
-#         st.write(outreach_email)
+            add_new_row(key, prev_email_content, key != "max_step_p")
