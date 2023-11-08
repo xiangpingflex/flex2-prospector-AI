@@ -1,9 +1,12 @@
 import openai
 
 from assistant.api.sagemaker_client import SagemakerClient
-from assistant.common.constant import FINE_TUNED_GPT, FINE_TUNED_LLAMA2
+from assistant.common.constant import (
+    FINE_TUNED_GPT_35,
+    FINE_TUNED_LLAMA2,
+    FINE_TUNED_GPT_4,
+)
 from assistant.model.prompts.out_reach_prompt import generate_out_reach_prompt
-import json
 
 
 class OutReachLLM:
@@ -34,7 +37,8 @@ class OutReachLLM:
         top_p: float = 0.9,
     ) -> str:
         prompt = generate_out_reach_prompt(email_templates, max_tokens)
-        if self.model_name == FINE_TUNED_GPT:
+        if self.model_name == FINE_TUNED_GPT_35:
+            print("calling gpt-3.5-turbo")
             response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
                 messages=prompt,
@@ -43,7 +47,18 @@ class OutReachLLM:
                 n=num_completions,
             )
             return response["choices"][0]["message"]["content"]
+        if self.model_name == FINE_TUNED_GPT_4:
+            print("calling gpt-4")
+            response = openai.ChatCompletion.create(
+                model="gpt-4-1106-preview",
+                messages=prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                n=num_completions,
+            )
+            return response["choices"][0]["message"]["content"]
         if self.model_name == FINE_TUNED_LLAMA2:
+            print("calling llama2")
             payload = {
                 "inputs": [prompt],
                 "parameters": {

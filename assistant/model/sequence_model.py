@@ -56,7 +56,9 @@ class SequenceModel:
                 df[col] = df[col].map(self.reverse_category_encode_map[col])
         df["company_founded_years"] = (
             datetime.datetime.now().year - df["company_founded_year"]
-        ).astype(int)
+        )
+        df["company_founded_years"].fillna(0, inplace=True)
+        df["company_founded_years"] = df["company_founded_years"].astype(int)
         df = df[
             [
                 "sequence_name_cat",

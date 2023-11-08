@@ -4,17 +4,21 @@ import streamlit as st
 import openai
 from dotenv import load_dotenv
 
-from assistant.common.constant import FINE_TUNED_GPT, FINE_TUNED_LLAMA2
+from assistant.common.constant import (
+    FINE_TUNED_GPT_35,
+    FINE_TUNED_LLAMA2,
+    FINE_TUNED_GPT_4,
+)
+from assistant.data_handler.data_handler import DataHandler
 from assistant.model.llm import OutReachLLM
 from model.sequence_model import SequenceModel
-from data_handler import DataHandler
 import time
 
 load_dotenv()
 openai.api_key = os.environ.get("OPEN-API-KEY")
 
 # List of models
-outreach_models = [FINE_TUNED_GPT, FINE_TUNED_LLAMA2]
+outreach_models = [FINE_TUNED_GPT_35, FINE_TUNED_GPT_4, FINE_TUNED_LLAMA2]
 data_handler = DataHandler(
     lead_info_path="/Users/xiangpingbu/Documents/projects/flex2-prospector-AI/resource/lead_info.csv"
 )
@@ -27,18 +31,37 @@ sequence_model = SequenceModel(
     email_template_path="/Users/xiangpingbu/Documents/projects/flex2-prospector-AI/resource/email_template.json",
 )
 
-outreach_model = OutReachLLM(
-    model_name=FINE_TUNED_GPT
-    # profile_name=os.environ.get("AWS_PROFILE_NAME"),
-    # region_name=os.environ.get("OUTREACH_MODEL_REGION"),
-    # endpoint_name=os.environ.get("OUTREACH_MODEL_ENDPOINT"),
-)
-
 
 def get_lead_info(index: int):
     if index >= data_handler.lead_info.shape[0]:
         index = data_handler.lead_info.shape[0]
     return data_handler.lead_info.iloc[index : index + 1]
+
+
+def session_init():
+    print("calling_init")
+    st.session_state["persist"] = {}
+    st.session_state["step"] = 0
+    st.session_state["top_resource"] = {}
+    st.session_state["slider_value"] = -999
+    # Initialize session state
+    # if "persist" not in st.session_state:
+    #     st.session_state["persist"] = {}
+    # if "step" not in st.session_state:
+    #     st.session_state["step"] = 0
+    # if "top_resource" not in st.session_state:
+    #     st.session_state["top_resource"] = {}
+    # if "slider_value" not in st.session_state:
+    #     st.session_state["slider_value"] = -999
+
+    # if "persist" not in st.session_state:
+    #     st.session_state["persist"] = {}
+    # if "step" not in st.session_state:
+    #     st.session_state["step"] = 0
+    # if "top_resource" not in st.session_state:
+    #     st.session_state["top_resource"] = {}
+    # if "slider_value" not in st.session_state:
+    #     st.session_state["slider_value"] = -999
 
 
 # st.markdown("## Email to Respond")
@@ -59,10 +82,21 @@ def get_lead_info(index: int):
 #     st.write(body)
 
 st.sidebar.title("Deal Selection")
+if "persist" not in st.session_state:
+    st.session_state["persist"] = {}
+if "step" not in st.session_state:
+    st.session_state["step"] = 0
+if "top_resource" not in st.session_state:
+    st.session_state["top_resource"] = {}
 #
-# # Add elements to the sidebar
-# option = st.sidebar.selectbox("Select an Option", ["Option 1", "Option 2", "Option 3"])
-slider_value = st.sidebar.slider("Select a deal", 0, 100, 1)
+slider_value = st.sidebar.slider("Select a deal", 0, 100, 1, key="deal_selection")
+# print(st.session_state.deal_selection)
+# if st.session_state.deal_selection != slider_value:
+#     print("I am here")
+#     print(st.session_state.slider_value)
+#     session_init()
+# st.session_state.slider_value = slider_value
+
 lead_info_case = get_lead_info(slider_value)
 
 company_name = lead_info_case.iloc[0]["company_name"]
@@ -96,6 +130,9 @@ st.sidebar.markdown(
 )
 st.sidebar.markdown(f"##### Company Units: {company_units}")
 
+reset_button = st.sidebar.button("reset")
+if reset_button:
+    session_init()
 st.title("Sales Assistant")
 
 st.markdown("<hr style='border: 0.5px solid white;'>", unsafe_allow_html=True)
@@ -115,20 +152,16 @@ top_p = st.slider("top_p", min_value=0.1, max_value=1.0, value=0.9, step=0.1)
 max_step = 10
 step = 1
 
-import random
-
-# Initialize session state
-if "persist" not in st.session_state:
-    st.session_state["persist"] = {}
-if "step" not in st.session_state:
-    st.session_state["step"] = 0
-
-if "top_resource" not in st.session_state:
-    st.session_state["top_resource"] = {}
+outreach_model = OutReachLLM(
+    model_name=outreach_model_choice
+    # profile_name=os.environ.get("AWS_PROFILE_NAME"),
+    # region_name=os.environ.get("OUTREACH_MODEL_REGION"),
+    # endpoint_name=os.environ.get("OUTREACH_MODEL_ENDPOINT"),
+)
 
 
 def add_new_row(new_key, new_value, with_response=True):
-    st.write(new_value)
+    st.info(new_value)
     # text_content = None
     if with_response:
         st.text_area("#### Enter email response content", key=new_key)
@@ -184,9 +217,10 @@ if email_gen:
                 for k, v in st.session_state["top_resource"].items()
                 if st.session_state["step"] < len(v)
             ]
-            # outreach_email = outreach_model.generate_outreach_email(email_template_list,
-            #                                                             max_tokens=max_length)
-            outreach_email = f"test content for step {st.session_state['step'] + 1}"
+            outreach_email = outreach_model.generate_outreach_email(
+                email_template_list, max_tokens=max_length
+            )
+            # outreach_email = f"test content for step {st.session_state['step'] + 1}"
 
             timestamp_in_seconds = time.time()
             new_key_email = "email_" + str(timestamp_in_seconds)
@@ -204,8 +238,10 @@ if email_gen:
                 f"#### Replay Email: \n" + reply_email,
                 None,
             )
+        elif cur_response == "meeting":
+            st.success("### Meeting Scheduled! \n Stop the sequence plan.")
         else:
-            st.success("### All steps are done!")
+            st.error("### All steps are done without any response!")
         session_state_key_sorted = ["max_step_p"] + sorted(
             [k for k in st.session_state["persist"].keys() if "email_" in k],
             reverse=True,
