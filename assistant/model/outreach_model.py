@@ -38,7 +38,7 @@ class OutReachLLM:
     ) -> str:
         prompt = generate_out_reach_prompt(email_templates, max_tokens)
         if self.model_name == FINE_TUNED_GPT_35:
-            print("calling gpt-3.5-turbo")
+            print("outreach calling gpt-3.5-turbo")
             response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
                 messages=prompt,
@@ -48,7 +48,7 @@ class OutReachLLM:
             )
             return response["choices"][0]["message"]["content"]
         if self.model_name == FINE_TUNED_GPT_4:
-            print("calling gpt-4")
+            print("outreach calling gpt-4")
             response = openai.ChatCompletion.create(
                 model="gpt-4-1106-preview",
                 messages=prompt,
@@ -58,7 +58,7 @@ class OutReachLLM:
             )
             return response["choices"][0]["message"]["content"]
         if self.model_name == FINE_TUNED_LLAMA2:
-            print("calling llama2")
+            print("outreach calling llama2")
             payload = {
                 "inputs": [prompt],
                 "parameters": {

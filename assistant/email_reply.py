@@ -6,8 +6,11 @@ from assistant.model.reply_model import ReplyLLM
 
 # from assistant.common.constant import FINE_TUNED_GPT_4
 # from assistant.model.reply_model import ReplyLLM
+import os
+import openai
 
 load_dotenv()
+openai.api_key = os.environ.get("OPEN-API-KEY")
 
 
 @st.cache_data

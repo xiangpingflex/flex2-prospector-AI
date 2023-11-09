@@ -3,12 +3,6 @@ import pandas as pd
 import streamlit as st
 import openai
 from dotenv import load_dotenv
-from langchain.chains import LLMChain
-from langchain.chat_models import ChatOpenAI
-from langchain.document_loaders import JSONLoader
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.prompts import PromptTemplate
-from langchain.vectorstores.faiss import FAISS
 
 from assistant.common.constant import (
     FINE_TUNED_GPT_35,
@@ -17,31 +11,47 @@ from assistant.common.constant import (
 )
 from assistant.data_handler.data_handler import DataHandler
 from assistant.model.outreach_model import OutReachLLM
+from assistant.model.reply_model import ReplyLLM
 from model.sequence_model import SequenceModel
 import time
 
 load_dotenv()
 openai.api_key = os.environ.get("OPEN-API-KEY")
 
-outreach_models = [FINE_TUNED_GPT_35, FINE_TUNED_GPT_4, FINE_TUNED_LLAMA2]
-data_handler = DataHandler(lead_info_path="./resource/lead_info.csv")
-sequence_model = SequenceModel(
-    profile_name=os.environ.get("AWS_PROFILE_NAME"),
-    region_name=os.environ.get("SEQUENCE_MODEL_REGION"),
-    endpoint_name=os.environ.get("SEQUENCE_MODEL_ENDPOINT"),
-    category_encode_map_path="./resource/category_encode_map.pkl",
-    reverse_category_encode_map_path="./resource/reverse_category_encode_map.pkl",
-    email_template_path="./resource/email_template.json",
-)
+outreach_models = [FINE_TUNED_GPT_4, FINE_TUNED_GPT_35, FINE_TUNED_LLAMA2]
 
-# loader = JSONLoader(
-#     file_path="./resource/flex_message.jsonl",
-#     jq_schema='"question: "+.question + " answer: " +.answer',
-#     json_lines=True,
-# )
-# documents = loader.load()
-# embeddings = OpenAIEmbeddings(openai_api_key=os.environ.get("OPEN-API-KEY"))
-# db = FAISS.from_documents(documents, embeddings)
+
+@st.cache_resource
+def get_init_state():
+    data_handler = DataHandler(lead_info_path="./resource/lead_info.csv")
+    print("data_handler init done")
+    sequence_model = SequenceModel(
+        profile_name=os.environ.get("AWS_PROFILE_NAME"),
+        region_name=os.environ.get("SEQUENCE_MODEL_REGION"),
+        endpoint_name=os.environ.get("SEQUENCE_MODEL_ENDPOINT"),
+        category_encode_map_path="./resource/category_encode_map.pkl",
+        reverse_category_encode_map_path="./resource/reverse_category_encode_map.pkl",
+        email_template_path="./resource/email_template.json",
+    )
+    print("sequence_model init done")
+    outreach_model = OutReachLLM(
+        model_name=FINE_TUNED_GPT_4,
+        profile_name=os.environ.get("AWS_PROFILE_NAME"),
+        region_name=os.environ.get("OUTREACH_MODEL_REGION"),
+        endpoint_name=os.environ.get("OUTREACH_MODEL_ENDPOINT"),
+    )
+    print("outreach_model init done")
+    reply_model = ReplyLLM(
+        model_name=FINE_TUNED_GPT_4,
+        profile_name=os.environ.get("AWS_PROFILE_NAME"),
+        region_name=os.environ.get("OUTREACH_MODEL_REGION"),
+        endpoint_name=os.environ.get("OUTREACH_MODEL_ENDPOINT"),
+    )
+    print("reply_model init done")
+    return data_handler, sequence_model, outreach_model, reply_model
+
+
+data_handler, sequence_model, outreach_model, reply_model = get_init_state()
 
 
 def get_lead_info(index: int):
@@ -54,30 +64,6 @@ def session_init():
     st.session_state["persist"] = {}
     st.session_state["step"] = 0
     st.session_state["top_resource"] = {}
-
-
-# def retrieve_info(query):
-#     similar_response = db.similarity_search(query, k=3)
-#     page_contents_array = [doc.page_content for doc in similar_response]
-#     return page_contents_array
-
-# 3. Setup LLMChain & prompts
-llm = ChatOpenAI(
-    openai_api_key=os.environ.get("OPEN-API-KEY"),
-    temperature=0.9,
-    # max_tokens=100,
-    model="gpt-4-1106-preview",
-)
-
-# prompt = PromptTemplate(input_variables=["message", "best_practice"], template=template)
-# chain = LLMChain(llm=llm, prompt=prompt)
-#
-#
-# # 4. Retrieval augmented generation
-# def generate_response(message):
-#     best_practice = retrieve_info(message)
-#     response = chain.run(message=message, best_practice=best_practice)
-#     return response
 
 
 if "persist" not in st.session_state:
@@ -144,13 +130,6 @@ top_p = st.slider("top_p", min_value=0.1, max_value=1.0, value=0.9, step=0.1)
 max_step = 10
 step = 1
 
-outreach_model = OutReachLLM(
-    model_name=outreach_model_choice,
-    profile_name=os.environ.get("AWS_PROFILE_NAME"),
-    region_name=os.environ.get("OUTREACH_MODEL_REGION"),
-    endpoint_name=os.environ.get("OUTREACH_MODEL_ENDPOINT"),
-)
-
 
 def add_new_row(new_key, new_value, with_response=True):
     st.info(new_value)
@@ -159,6 +138,17 @@ def add_new_row(new_key, new_value, with_response=True):
         st.session_state["persist"][new_key] = (new_value, new_key)
     else:
         st.session_state["persist"][new_key] = (new_value, None)
+
+
+def show_persist_content():
+    if "max_step_p" in st.session_state["persist"]:
+        session_state_key_sorted = ["max_step_p"] + sorted(
+            [k for k in st.session_state["persist"].keys() if "email_" in k],
+            reverse=True,
+        )
+        for key in session_state_key_sorted:
+            prev_email_content = st.session_state["persist"][key][0]
+            add_new_row(key, prev_email_content, key != "max_step_p")
 
 
 email_gen = st.button("Generate Email", key=f"email_generation_button")
@@ -216,9 +206,16 @@ if email_gen:
             )
             st.session_state["step"] += 1
         elif cur_response != "" and cur_response != "meeting":
+            print("in reply")
             timestamp_in_seconds = time.time()
             new_key_email = "email_" + str(timestamp_in_seconds)
-            reply_email = "This is a replay email"
+            reply_email = reply_model.generate_reply_email(
+                cur_response,
+                max_tokens=max_length,
+                temperature=temperature,
+                # top_p=top_p,
+            )
+            # reply_email = "this is replay"
             st.session_state["persist"][new_key_email] = (
                 f"#### Replay Email: \n" + reply_email,
                 None,
@@ -231,6 +228,7 @@ if email_gen:
             [k for k in st.session_state["persist"].keys() if "email_" in k],
             reverse=True,
         )
-        for key in session_state_key_sorted:
-            prev_email_content = st.session_state["persist"][key][0]
-            add_new_row(key, prev_email_content, key != "max_step_p")
+        # for key in session_state_key_sorted:
+        #     prev_email_content = st.session_state["persist"][key][0]
+        #     add_new_row(key, prev_email_content, key != "max_step_p")
+show_persist_content()
