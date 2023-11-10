@@ -1,6 +1,2 @@
 # flex2-prospector-AI
-leverage AI to improve productivity of sales team
-
-# lightgbm install
-- can't install lightgbm on m1 macos using pip
-- using conda package manager
+Create a “No touch” AI product known as Prospector that will move the leads down the sales funnel. The product will create campaigns or interactions with the prospect to drive them down the sales funnel by creating a meeting with an Account Executive (AE) or drive the prospect into self-serve onboarding flow. 
